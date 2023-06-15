@@ -18,17 +18,19 @@ defmodule ShoppingList do
     GenServer.call(__MODULE__, :view_cart)
   end
 
+  def terminate() do
+    GenServer.cast(__MODULE__, :terminate)
+  end
+
   # server side
   def init(cart) do
     # Initialize the cart by adding the necessary keys and values
-    cart = Map.put(cart, :products, []) |> Map.put(:total_price, 0) |> IO.inspect()
+    cart = Map.put(cart, :products, []) |> Map.put(:total_price, 0)
 
     {:ok, cart}
   end
 
   def handle_cast({:add_product, product}, %{products: products, total_price: total_price} = cart) do
-    IO.inspect(cart)
-
     # Add the new product to the list of products
     products = [product | products]
 
@@ -39,6 +41,10 @@ defmodule ShoppingList do
     cart = %{cart | products: products, total_price: total_price}
 
     {:noreply, cart}
+  end
+
+  def handle_cast(:terminate, _cart) do
+    {:stop, :normal, :ok}
   end
 
   def handle_call(:view_cart, _from, cart) do
@@ -61,17 +67,22 @@ defmodule ShoppingList do
       # Remove the product from the cart and update the total price
       with_rem_products = Enum.reject(products, fn prod -> prod.name == product.name end)
       new_products = [update_quantity | with_rem_products]
-      total_price = Enum.map(new_products, fn product -> product.price end) |> Enum.sum()
+
+      new_total_price =
+        Enum.map(new_products, fn prod -> prod.price * prod.quantity end) |> Enum.sum()
 
       # Update the cart with the new products and total price
-      new_cart = %{cart | products: new_products, total_price: total_price}
-      {:reply, cart, new_cart}
+      new_cart = %{cart | products: new_products, total_price: new_total_price}
+      {:reply, new_cart, new_cart}
     else
       # If the product quantity is 1, remove the product from the cart and update the total price
       new_products = Enum.reject(products, fn prod -> prod.name == product.name end)
-      total_price = Enum.map(new_products, fn product -> product.price end) |> Enum.sum()
-      new_cart = %{cart | products: new_products, total_price: total_price}
-      {:reply, cart, new_cart}
+
+      new_total_price =
+        Enum.map(new_products, fn product -> product.price * product.quantity end) |> Enum.sum()
+
+      new_cart = %{cart | products: new_products, total_price: new_total_price}
+      {:reply, new_cart, new_cart}
     end
   end
 end
